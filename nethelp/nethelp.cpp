@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTextBrowser>
+#include <QHostInfo>
+#include <QtNetwork>
 
 nethelp::nethelp(QWidget *parent)
     : QWidget(parent)
@@ -25,40 +27,60 @@ QGroupBox* nethelp::createnetconfGroup()
     //1
     QGroupBox* groupBox = new QGroupBox(tr("网络设置"));
 
-    QLabel* label1 = new QLabel(tr("(1)协议类型"));
-    QComboBox* comboBox = new QComboBox();
-    comboBox->addItem(tr("UDP"));
-    comboBox->addItem(tr("TCP Server"));
-    comboBox->addItem(tr("TCP Client"));
+    prottypeLabel = new QLabel(tr("(1)协议类型"));
+    prottypeComboBox = new QComboBox();
+    prottypeComboBox->addItem(tr("UDP"));
+    prottypeComboBox->addItem(tr("TCP Server"));
+    prottypeComboBox->addItem(tr("TCP Client"));
 
-    QLabel* label2 = new QLabel(tr("本地IP地址"));
-    QLineEdit* lineEdit1 = new QLineEdit();
+    addrLabel = new QLabel(tr("(2)服务器IP地址"));
+    //find out IP addresses of this machine
+    QString localhostname = QHostInfo::localHostName();
+    QString ipaddress;
+    QHostInfo info = QHostInfo::fromName(localhostname);
+    foreach (QHostAddress address, info.addresses())
+    {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol)
+        {
+            ipaddress = address.toString();
+            qDebug() << address.toString();
+            break;
+        }
+    }
+    ipaddrLineEdit = new QLineEdit(ipaddress);
 
-    QLabel* label3 = new QLabel(tr("本地端口号"));
-    QLineEdit* lineEdit2 = new QLineEdit();
+    portLabel = new QLabel(tr("(3)服务器端口"));
+    portLineEdit = new QLineEdit(tr("8080"));
 
-    QPushButton* pushbutton = new QPushButton(tr("连接"));
+    linkPushButton = new QPushButton(tr("连接"));
+
+    tcpSocket = new QTcpSocket(this);
+
+    connect(linkPushButton, SIGNAL(clicked(bool)),
+            this, SLOT(newConnect()));
+    connect(tcpSocket, SIGNAL(readyRead()),
+            this, SLOT(readMessage()));
 
     //2
     QVBoxLayout* toplayout = new QVBoxLayout();
-    toplayout->addWidget(label1);
-    toplayout->addWidget(comboBox);
+    toplayout->addWidget(prottypeLabel);
+    toplayout->addWidget(prottypeComboBox);
     toplayout->addStretch(1);
 
     QVBoxLayout* middlelayout = new QVBoxLayout();
-    middlelayout->addWidget(label2);
-    middlelayout->addWidget(lineEdit1);
+    middlelayout->addWidget(addrLabel);
+    middlelayout->addWidget(ipaddrLineEdit);
     middlelayout->addStretch(1);
 
     QVBoxLayout* bomlayout = new QVBoxLayout();
-    bomlayout->addWidget(label3);
-    bomlayout->addWidget(lineEdit2);
+    bomlayout->addWidget(portLabel);
+    bomlayout->addWidget(portLineEdit);
 
     QVBoxLayout* mainlayout = new QVBoxLayout();
     mainlayout->addLayout(toplayout);
     mainlayout->addLayout(middlelayout);
     mainlayout->addLayout(bomlayout);
-    mainlayout->addWidget(pushbutton);
+    mainlayout->addWidget(linkPushButton);
     groupBox->setLayout(mainlayout);
 
     return groupBox;
@@ -126,16 +148,42 @@ QGroupBox* nethelp::createdatasendGroup()
 {
     //1
     QGroupBox* group = new QGroupBox();
-    QLineEdit* lineedit = new QLineEdit();
-    QPushButton* pushbutton = new QPushButton(tr("发送"));
+    sendLineEdit = new QLineEdit();
+    sendPushButton = new QPushButton(tr("发送"));
+
+    connect(sendPushButton, SIGNAL(clicked(bool)),
+            this, SLOT(sendMessage()));
 
     //2
     QHBoxLayout* layout = new QHBoxLayout();
-    layout->addWidget(lineedit);
-    layout->addWidget(pushbutton);
+    layout->addWidget(sendLineEdit);
+    layout->addWidget(sendPushButton);
     group->setLayout(layout);
 
     return group;
+}
+
+void nethelp::newConnect()
+{
+    linkPushButton->setEnabled(false);
+    tcpSocket->abort();
+    tcpSocket->connectToHost(ipaddrLineEdit->text(), portLineEdit->text().toInt());
+    qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+}
+
+void nethelp::readMessage()
+{
+    QByteArray *block = new QByteArray;
+    block->append(tcpSocket->readAll());
+    qDebug() << QString(*block);
+}
+
+void nethelp::sendMessage()
+{
+    QByteArray *block = new QByteArray;
+    block->append(sendLineEdit->text());
+    tcpSocket->write(*block);
+    delete block;
 }
 
 nethelp::~nethelp()

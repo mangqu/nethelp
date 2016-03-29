@@ -3,6 +3,11 @@
 
 #include <QWidget>
 #include <QGroupBox>
+#include <QLabel>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QtNetwork>
 
 class nethelp : public QWidget
 {
@@ -12,7 +17,25 @@ public:
     nethelp(QWidget *parent = 0);
     ~nethelp();
 
+public slots:
+    void newConnect();
+    void readMessage();
+    void sendMessage();
+
 private:
+    QLabel* prottypeLabel;
+    QComboBox* prottypeComboBox;
+    QLabel* addrLabel;
+    QLineEdit* ipaddrLineEdit;
+    QLabel* portLabel;
+    QLineEdit* portLineEdit;
+    QPushButton* linkPushButton;
+    QLineEdit* sendLineEdit;
+    QPushButton* sendPushButton;
+
+    QTcpSocket* tcpSocket;
+    QString message;
+
     QGroupBox* createnetconfGroup();
     QGroupBox* createrecvconfGroup();
     QGroupBox* createsendconfGroup();
