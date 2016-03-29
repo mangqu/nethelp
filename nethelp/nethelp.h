@@ -35,12 +35,17 @@ private:
 
     QTcpSocket* tcpSocket;
     QString message;
+    QTcpServer* tcpServer;
 
     QGroupBox* createnetconfGroup();
     QGroupBox* createrecvconfGroup();
     QGroupBox* createsendconfGroup();
     QGroupBox* createdatarecvGroup();
     QGroupBox* createdatasendGroup();
+
+    void tcpClientsendMessage();
+    void tcpServerSendMessage();
+    void udpSendMessage();
 };
 
 #endif // NETHELP_H

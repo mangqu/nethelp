@@ -54,12 +54,8 @@ QGroupBox* nethelp::createnetconfGroup()
 
     linkPushButton = new QPushButton(tr("连接"));
 
-    tcpSocket = new QTcpSocket(this);
-
     connect(linkPushButton, SIGNAL(clicked(bool)),
             this, SLOT(newConnect()));
-    connect(tcpSocket, SIGNAL(readyRead()),
-            this, SLOT(readMessage()));
 
     //2
     QVBoxLayout* toplayout = new QVBoxLayout();
@@ -165,10 +161,35 @@ QGroupBox* nethelp::createdatasendGroup()
 
 void nethelp::newConnect()
 {
-    linkPushButton->setEnabled(false);
-    tcpSocket->abort();
-    tcpSocket->connectToHost(ipaddrLineEdit->text(), portLineEdit->text().toInt());
-    qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+    if (prottypeComboBox->currentText() == "TCP Client")
+    {
+        linkPushButton->setEnabled(false);
+        tcpSocket = new QTcpSocket(this);
+        connect(tcpSocket, SIGNAL(readyRead()),
+                this, SLOT(readMessage()));
+        tcpSocket->abort();
+        tcpSocket->connectToHost(ipaddrLineEdit->text(), portLineEdit->text().toInt());
+        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+    }
+    else if (prottypeComboBox->currentText() == tr("TCP Server"))
+    {
+        linkPushButton->setEnabled(false);
+        tcpServer = new QTcpServer(this);
+        if (!tcpServer->listen(QHostAddress::Any, 45454))
+        {
+            qDebug() << tcpServer->errorString();
+            close();
+        }
+        connect(tcpServer, SIGNAL(newConnection()),
+                this, SLOT(sendMessage()));
+        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+    }
+    else if (prottypeComboBox->currentText() == tr("UDP"))
+    {
+        linkPushButton->setEnabled(false);
+
+        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+    }
 }
 
 void nethelp::readMessage()
@@ -180,10 +201,43 @@ void nethelp::readMessage()
 
 void nethelp::sendMessage()
 {
+    if (prottypeComboBox->currentText() == tr("TCP Client"))
+    {
+        tcpClientsendMessage();
+        qDebug() << tr("tcp client sendMessage");
+    }
+    else if (prottypeComboBox->currentText() == tr("TCP Server"))
+    {
+        tcpServerSendMessage();
+        qDebug() << tr("tcp server sendMessage");
+    }
+    else if (prottypeComboBox->currentText() == tr("UDP"))
+    {
+        udpSendMessage();
+        qDebug() << tr("udp sendMessage");
+    }
+}
+
+void nethelp::tcpClientsendMessage()
+{
     QByteArray *block = new QByteArray;
     block->append(sendLineEdit->text());
     tcpSocket->write(*block);
     delete block;
+}
+
+void nethelp::tcpServerSendMessage()
+{
+    QByteArray* block = new QByteArray;
+    block->append(tr("hello tcp!"));
+
+    QTcpSocket* clientConnection = tcpServer->nextPendingConnection();
+    clientConnection->write(*block);
+}
+
+void nethelp::udpSendMessage()
+{
+
 }
 
 nethelp::~nethelp()
