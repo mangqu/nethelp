@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QtNetwork>
+#include <QTextBrowser>
 
 class nethelp : public QWidget
 {
@@ -18,9 +19,15 @@ public:
     ~nethelp();
 
 public slots:
+    void netconfgroupUpdata();
     void newConnect();
-    void readMessage();
-    void sendMessage();
+    void tcpClientreadMessage();
+    void tcpServerreadMessage();
+    void tcpClientsendMessage();
+    void tcpServerSendMessage();
+    void tcpServernewConnection();
+    void udpSendMessage();
+    void udpRecvMessage();
 
 private:
     QLabel* prottypeLabel;
@@ -32,20 +39,20 @@ private:
     QPushButton* linkPushButton;
     QLineEdit* sendLineEdit;
     QPushButton* sendPushButton;
+    QTextBrowser* recvTextBrowser;
 
     QTcpSocket* tcpSocket;
     QString message;
     QTcpServer* tcpServer;
+    QTcpSocket* clientConnection;
+    QUdpSocket* udpSendSocket;
+    QUdpSocket* udpRecvSocket;
 
     QGroupBox* createnetconfGroup();
     QGroupBox* createrecvconfGroup();
     QGroupBox* createsendconfGroup();
     QGroupBox* createdatarecvGroup();
     QGroupBox* createdatasendGroup();
-
-    void tcpClientsendMessage();
-    void tcpServerSendMessage();
-    void udpSendMessage();
 };
 
 #endif // NETHELP_H
