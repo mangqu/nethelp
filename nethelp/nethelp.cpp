@@ -36,29 +36,48 @@ QGroupBox* nethelp::createnetconfGroup()
     connect(prottypeComboBox, SIGNAL(activated(QString)),
             this, SLOT(netconfgroupUpdata()));
 
-    addrLabel = new QLabel(tr("(2)本地IP地址"));
+    addrLabel = new QLabel(tr("(2)本地主机地址"));
+    ipaddrComboBox = new QComboBox;
     //find out IP addresses of this machine
-    QString localhostname = QHostInfo::localHostName();
-    QString ipaddress;
-    QHostInfo info = QHostInfo::fromName(localhostname);
-    foreach (QHostAddress address, info.addresses())
+    QList<QHostAddress> ipaddresslist = QNetworkInterface::allAddresses();
+    foreach (QHostAddress address, ipaddresslist)
     {
         if (address.protocol() == QAbstractSocket::IPv4Protocol)
         {
-            ipaddress = address.toString();
-            qDebug() << address.toString();
-            break;
+           ipaddrComboBox->addItem(address.toString());
         }
     }
-    ipaddrLineEdit = new QLineEdit(ipaddress);
+//    QString localhostname = QHostInfo::localHostName();
+//    QString ipaddress;
+//    QHostInfo info = QHostInfo::fromName(localhostname);
+//    foreach (QHostAddress address, info.addresses())
+//    {
+//        if ((address.protocol() == QAbstractSocket::IPv4Protocol) &&
+//                (address != QHostAddress::Null) &&
+//                (address != QHostAddress::LocalHost))
+//        {
+//            if (address.toString().contains("127.0."))
+//            {
+//                continue;
+//            }
+//            ipaddress = address.toString();
+//            qDebug() << address.toString();
+//            break;
+//        }
+//    }
+//    ipaddrLineEdit = new QLineEdit(ipaddress);
 
-    portLabel = new QLabel(tr("(3)本地端口号"));
+    portLabel = new QLabel(tr("(3)本地主机端口"));
     portLineEdit = new QLineEdit(tr("8080"));
 
     linkPushButton = new QPushButton(tr("连接"));
 
     connect(linkPushButton, SIGNAL(clicked(bool)),
             this, SLOT(newConnect()));
+
+    tcpSocket = new QTcpSocket(this);
+    connect(tcpSocket, SIGNAL(readyRead()),
+            this, SLOT(tcpClientreadMessage()));
 
     //2
     QVBoxLayout* toplayout = new QVBoxLayout();
@@ -67,7 +86,7 @@ QGroupBox* nethelp::createnetconfGroup()
 
     QVBoxLayout* middlelayout = new QVBoxLayout();
     middlelayout->addWidget(addrLabel);
-    middlelayout->addWidget(ipaddrLineEdit);
+    middlelayout->addWidget(ipaddrComboBox);
 
     QVBoxLayout* bomlayout = new QVBoxLayout();
     bomlayout->addWidget(portLabel);
@@ -145,14 +164,38 @@ QGroupBox* nethelp::createdatasendGroup()
 {
     //1
     QGroupBox* group = new QGroupBox();
+
+    remoteIpLabel = new QLabel(tr("远程主机地址:"));
+    remoteIpLineEdit = new QLineEdit;
+
+    remotePortLabel = new QLabel(tr("远程主机端口号:"));
+    remotePortLineEdit = new QLineEdit();
+
     sendLineEdit = new QLineEdit();
     sendPushButton = new QPushButton(tr("发送"));
 
     //2
-    QHBoxLayout* layout = new QHBoxLayout();
-    layout->addWidget(sendLineEdit);
-    layout->addWidget(sendPushButton);
-    group->setLayout(layout);
+    QHBoxLayout* topleftlayout = new QHBoxLayout;
+    topleftlayout->addWidget(remoteIpLabel);
+    topleftlayout->addWidget(remoteIpLineEdit);
+
+    QHBoxLayout* toprightlayout = new QHBoxLayout;
+    toprightlayout->addWidget(remotePortLabel);
+    toprightlayout->addWidget(remotePortLineEdit);
+
+    QHBoxLayout* toplayout = new QHBoxLayout;
+    toplayout->addLayout(topleftlayout);
+    toplayout->addStretch(1);
+    toplayout->addLayout(toprightlayout);
+
+    QHBoxLayout* bomlayout = new QHBoxLayout;
+    bomlayout->addWidget(sendLineEdit);
+    bomlayout->addWidget(sendPushButton);
+
+    QVBoxLayout* mainlayout = new QVBoxLayout();
+    mainlayout->addLayout(toplayout);
+    mainlayout->addLayout(bomlayout);
+    group->setLayout(mainlayout);
 
     return group;
 }
@@ -162,55 +205,88 @@ void nethelp::netconfgroupUpdata()
     if (prottypeComboBox->currentText() == tr("TCP Client"))
     {
         prottypeLabel->setText(tr("(1)协议类型"));
-        addrLabel->setText(tr("(2)服务器IP地址"));
-        portLabel->setText(tr("(3)服务器端口号"));
+        addrLabel->setText(tr("(2)远程主机地址"));
+        portLabel->setText(tr("(3)远程主机端口"));
+    }
+    else if (prottypeComboBox->currentText() == tr("TCP Server"))
+    {
+        prottypeLabel->setText(tr("(1)协议类型"));
+        addrLabel->setText(tr("(2)本地主机地址"));
+        portLabel->setText(tr("(3)本地主机端口"));
+    }
+    else if (prottypeComboBox->currentText() == tr("UDP"))
+    {
+        prottypeLabel->setText(tr("(1)协议类型"));
+        addrLabel->setText(tr("(2)本地主机地址"));
+        portLabel->setText(tr("(3)本地主机端口"));
     }
 }
 
 void nethelp::newConnect()
 {
-    if (prottypeComboBox->currentText() == "TCP Client")
+    if (linkPushButton->text() == tr("连接"))
     {
-        linkPushButton->setText(tr("关闭"));
-        tcpSocket = new QTcpSocket(this);
-        connect(tcpSocket, SIGNAL(readyRead()),
-                this, SLOT(tcpClientreadMessage()));
-        connect(sendPushButton, SIGNAL(clicked(bool)),
-                this, SLOT(tcpClientsendMessage()));
-        tcpSocket->abort();
-        tcpSocket->connectToHost(ipaddrLineEdit->text(), portLineEdit->text().toInt());
-        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
-    }
-    else if (prottypeComboBox->currentText() == tr("TCP Server"))
-    {
-        linkPushButton->setText(tr("关闭"));
-        tcpServer = new QTcpServer(this);
-        if (!tcpServer->listen(QHostAddress::Any, 45454))
+        if (prottypeComboBox->currentText() == tr("TCP Client"))
         {
-            qDebug() << tcpServer->errorString();
-            close();
+            linkPushButton->setText(tr("关闭"));
+            connect(sendPushButton, SIGNAL(clicked(bool)),
+                    this, SLOT(tcpClientsendMessage()));
+            tcpSocket->abort();
+            tcpSocket->connectToHost(ipaddrComboBox->currentText(), portLineEdit->text().toInt());
+            qDebug() << ipaddrComboBox->currentText() << portLineEdit->text();
         }
-        connect(tcpServer, SIGNAL(newConnection()),
-                this, SLOT(tcpServernewConnection()));
-        connect(sendPushButton, SIGNAL(clicked(bool)),
-                this, SLOT(tcpServerSendMessage()));
-        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
-    }
-    else if (prottypeComboBox->currentText() == tr("UDP"))
-    {
-        //1
-        linkPushButton->setText(tr("关闭"));
+        else if (prottypeComboBox->currentText() == tr("TCP Server"))
+        {
+            linkPushButton->setText(tr("关闭"));
+            tcpServer = new QTcpServer(this);
+            if (!tcpServer->listen(QHostAddress(ipaddrComboBox->currentText()),
+                                   portLineEdit->text().toInt()))
+            {
+                qDebug() << tcpServer->errorString();
+                close();
+            }
+            connect(tcpServer, SIGNAL(newConnection()),
+                    this, SLOT(tcpServernewConnection()));
+            connect(sendPushButton, SIGNAL(clicked(bool)),
+                    this, SLOT(tcpServerSendMessage()));
+            qDebug() << ipaddrComboBox->currentText() << portLineEdit->text();
+        }
+        else if (prottypeComboBox->currentText() == tr("UDP"))
+        {
+            //1
+            linkPushButton->setText(tr("关闭"));
 
-        //2
-        udpSendSocket = new QUdpSocket(this);
-        connect(sendPushButton, SIGNAL(clicked(bool)),
-                this, SLOT(udpSendMessage()));
-        //3
-        udpRecvSocket = new QUdpSocket(this);
-        udpRecvSocket->bind(portLineEdit->text().toInt(), QUdpSocket::ShareAddress);
-        connect(udpRecvSocket, SIGNAL(readyRead()),
-                this, SLOT(udpRecvMessage()));
-        qDebug() << ipaddrLineEdit->text() << portLineEdit->text();
+            //2
+            udpSendSocket = new QUdpSocket(this);
+            connect(sendPushButton, SIGNAL(clicked(bool)),
+                    this, SLOT(udpSendMessage()));
+            //3
+            udpListnerSocket = new QUdpSocket(this);
+            udpListnerSocket->bind(QHostAddress(ipaddrComboBox->currentText()),
+                                   portLineEdit->text().toInt());
+            connect(udpListnerSocket, SIGNAL(readyRead()),
+                    this, SLOT(udpRecvMessage()));
+            qDebug() << ipaddrComboBox->currentText() << portLineEdit->text();
+        }
+    }
+    else if (linkPushButton->text() == tr("关闭"))
+    {
+        if (prottypeComboBox->currentText() == "TCP Client")
+        {
+            linkPushButton->setText(tr("连接"));
+            qDebug() << tr("close TCP Client");
+        }
+        else if (prottypeComboBox->currentText() == tr("TCP Server"))
+        {
+            linkPushButton->setText(tr("连接"));
+            qDebug() << tr("close TCP Server");
+        }
+        else if (prottypeComboBox->currentText() == tr("UDP"))
+        {
+            //1
+            linkPushButton->setText(tr("连接"));
+            qDebug() << tr("close UDP");
+        }
     }
 }
 
@@ -234,6 +310,7 @@ void nethelp::tcpClientsendMessage()
 {
     QByteArray *block = new QByteArray;
     block->append(sendLineEdit->text());
+    qDebug() << *block;
     tcpSocket->write(*block);
     delete block;
 }
@@ -241,6 +318,7 @@ void nethelp::tcpClientsendMessage()
 void nethelp::tcpServerSendMessage()
 {
     QByteArray* block = new QByteArray;
+    block->clear();
     block->append(sendLineEdit->text());
 
     clientConnection->write(*block);
@@ -259,17 +337,19 @@ void nethelp::udpSendMessage()
     QByteArray* datagram = new QByteArray;
     datagram->append(sendLineEdit->text());
 
-    udpSendSocket->writeDatagram((*datagram).data(), (*datagram).size(),
-                             QHostAddress::Broadcast, portLineEdit->text().toInt());
+    udpSendSocket->writeDatagram((*datagram),
+                                 QHostAddress(remoteIpLineEdit->text()),
+                                 remotePortLineEdit->text().toInt());
 }
 
 void nethelp::udpRecvMessage()
 {
-    while (udpRecvSocket->hasPendingDatagrams())
+    qDebug() << tr("udpRecvMessage");
+    while (udpListnerSocket->hasPendingDatagrams())
     {
         QByteArray datagram;
-        datagram.resize(udpRecvSocket->pendingDatagramSize());
-        udpRecvSocket->readDatagram(datagram.data(), datagram.size());
+        datagram.resize(udpListnerSocket->pendingDatagramSize());
+        udpListnerSocket->readDatagram(datagram.data(), datagram.size());
         recvTextBrowser->setText(datagram);
     }
 }
